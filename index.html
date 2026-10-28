@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DataShadow — Personal Data Flow & Egress Privacy Analyzer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #070912; color: #f1f5f9; }
+    code, pre { font-family: 'Fira Code', monospace; }
+    .glass-panel { background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); }
+    .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scroll::-webkit-scrollbar-track { background: #070912; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col custom-scroll">
+
+  <!-- HEADER -->
+  <header class="border-b border-slate-800 bg-slate-950/80 sticky top-0 z-50 backdrop-blur-md">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-rose-500 to-red-600 flex items-center justify-center font-bold text-white shadow-lg shadow-rose-500/20">
+          🕵️
+        </div>
+        <div>
+          <span class="font-bold text-lg text-white tracking-tight">DataShadow<span class="text-rose-400">.Privacy</span></span>
+          <span class="hidden sm:inline-block ml-2 text-xs px-2 py-0.5 rounded-full bg-rose-950 text-rose-400 border border-rose-800 font-mono">Personal Data Egress & Shadow Tracker Monitor</span>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <select id="egressSelect" onchange="loadEgressScenario(this.value)" class="bg-slate-900 border border-slate-700 text-xs text-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-rose-500 font-medium">
+          <option value="data_broker">Scenario: Stealth Data Broker & GPS Exfiltration (Critical)</option>
+          <option value="session_replay">Scenario: Keystroke & Form Replay Egress (High Risk)</option>
+          <option value="legitimate">Scenario: Scoped Stripe Payment Flow (100% Compliant)</option>
+        </select>
+        <button onclick="interceptEgress()" class="px-4 py-1.5 rounded-lg bg-rose-500 hover:bg-rose-400 text-slate-950 text-xs font-bold shadow-lg shadow-rose-500/20 transition flex items-center gap-1.5">
+          <span>⚡</span> Audit Egress Flows
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN INTERFACE -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <!-- METRICS STRIP -->
+    <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div class="glass-panel p-3.5 rounded-xl border-slate-800">
+        <div class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">Privacy Score</div>
+        <div id="stat-score" class="text-lg font-bold text-red-400">35 / 100</div>
+      </div>
+      <div class="glass-panel p-3.5 rounded-xl border-slate-800">
+        <div class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">Egress Streams</div>
+        <div id="stat-streams" class="text-lg font-bold text-slate-200">3 Endpoints</div>
+      </div>
+      <div class="glass-panel p-3.5 rounded-xl border-slate-800">
+        <div class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">Undeclared Exposures</div>
+        <div id="stat-undeclared" class="text-lg font-bold text-red-400">2 Violations</div>
+      </div>
+      <div class="glass-panel p-3.5 rounded-xl border-slate-800">
+        <div class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">Highest Risk Tier</div>
+        <div id="stat-risk" class="text-lg font-bold text-red-400 flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-red-400 animate-pulse"></span> CRITICAL
+        </div>
+      </div>
+      <div class="glass-panel p-3.5 rounded-xl border-slate-800">
+        <div class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-0.5">Policy Scope</div>
+        <div id="stat-policy" class="text-lg font-bold text-amber-400">Scope Creep</div>
+      </div>
+    </div>
+
+    <!-- MAIN TWO-COLUMN SPLIT -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+      <!-- LEFT: EGRESS NETWORK STREAM & PACKET INSPECTOR -->
+      <div class="lg:col-span-7 space-y-4">
+        <div class="glass-panel rounded-xl p-5 border-slate-800">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+            <div>
+              <h2 class="text-sm font-bold text-white uppercase tracking-wider">Intercepted Outbound Network Requests</h2>
+              <p class="text-xs text-slate-400">Real-time HTTP/WebSocket telemetry payloads mapped to third-party domains.</p>
+            </div>
+            <span class="text-xs font-mono text-rose-400 bg-rose-950 px-2.5 py-1 rounded-md border border-rose-800">Live Sniffer</span>
+          </div>
+
+          <div class="space-y-3" id="egressFlowsContainer">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: DETECTED EXPOSURES & POLICY VIOLATIONS -->
+      <div class="lg:col-span-5 space-y-4">
+        <div class="glass-panel rounded-xl p-4 border-rose-900/50 bg-rose-950/10 space-y-3">
+          <div class="flex items-center justify-between pb-2 border-b border-rose-900/40">
+            <span class="text-xs font-bold text-rose-400 uppercase tracking-wider flex items-center gap-1.5">
+              <span>⚠️</span> Detected Privacy Exposure Violations
+            </span>
+            <span class="text-[11px] font-mono text-slate-400" id="violationCount">2 Flagged</span>
+          </div>
+          <div class="space-y-3" id="violationsList">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+
+        <!-- DECLARED APP PRIVACY PERMISSIONS -->
+        <div class="glass-panel rounded-xl p-4 border-slate-800 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-slate-300 uppercase tracking-wider">Declared Privacy Scope (App Manifest)</span>
+            <span class="text-[10px] font-mono text-cyan-400">User-Granted</span>
+          </div>
+          <div class="flex flex-wrap gap-2 pt-1" id="declaredTags">
+            <!-- Tags -->
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <script>
+    const EGRESS_SCENARIOS = {
+      data_broker: {
+        score: "35 / 100",
+        scoreColor: "red",
+        streams: "3 Endpoints",
+        undeclared: "2 Violations",
+        risk: "CRITICAL",
+        riskColor: "red",
+        policy: "Scope Creep",
+        declared: ["TECHNICAL"],
+        flows: [
+          {
+            domain: "tracker.databroker.io",
+            entity: "OmniData Broker Corp",
+            method: "POST",
+            endpoint: "/v1/ingest/device",
+            category: "DATA_BROKER",
+            severity: "CRITICAL",
+            payload: {
+              email: "al***4@gmail.com",
+              lat: "37.7749",
+              lon: "-122.4194",
+              device_id: "IDFA-88194-BF1"
+            }
+          },
+          {
+            domain: "ads.facebook.com",
+            entity: "Meta Advertising Network",
+            method: "POST",
+            endpoint: "/tr/",
+            category: "AD_NETWORK",
+            severity: "HIGH",
+            payload: {
+              ev: "Subscribed",
+              phone: "+1-***-***-8821"
+            }
+          },
+          {
+            domain: "telemetry.myapp.internal",
+            entity: "Internal Logging Server",
+            method: "POST",
+            endpoint: "/logs",
+            category: "INFRASTRUCTURE",
+            severity: "LOW",
+            payload: {
+              os: "iOS 17.4",
+              screen: "1179x2556"
+            }
+          }
+        ],
+        violations: [
+          {
+            field: "lat / lon",
+            category: "LOCATION",
+            entity: "OmniData Broker Corp",
+            severity: "CRITICAL",
+            rationale: "Precise GPS coordinates dispatched to unauthorized third-party data broker without declared location scope."
+          },
+          {
+            field: "phone",
+            category: "IDENTIFIER",
+            entity: "Meta Advertising Network",
+            severity: "HIGH",
+            rationale: "Hashed phone identifier shared with ad network for cross-platform audience targeting without opt-in consent."
+          }
+        ]
+      },
+      session_replay: {
+        score: "50 / 100",
+        scoreColor: "amber",
+        streams: "2 Endpoints",
+        undeclared: "1 Violation",
+        risk: "HIGH",
+        riskColor: "amber",
+        policy: "Excessive Telemetry",
+        declared: ["TECHNICAL", "IDENTIFIER"],
+        flows: [
+          {
+            domain: "telemetry.hotjar.com",
+            entity: "Hotjar Session Replay",
+            method: "POST",
+            endpoint: "/api/record",
+            category: "ANALYTICS",
+            severity: "HIGH",
+            payload: {
+              keystrokes: "[k, e, y, s, t, r, o, k, e, s]",
+              mouse_moves: "142 events"
+            }
+          }
+        ],
+        violations: [
+          {
+            field: "keystrokes",
+            category: "BEHAVIORAL",
+            entity: "Hotjar Session Replay",
+            severity: "HIGH",
+            rationale: "Unmasked raw keystrokes captured during checkout flow. Risk of sensitive data interception."
+          }
+        ]
+      },
+      legitimate: {
+        score: "100 / 100",
+        scoreColor: "emerald",
+        streams: "1 Endpoint",
+        undeclared: "0 Violations",
+        risk: "LOW",
+        riskColor: "emerald",
+        policy: "Compliant",
+        declared: ["FINANCIAL", "TECHNICAL"],
+        flows: [
+          {
+            domain: "api.stripe.com",
+            entity: "Stripe Payments Inc",
+            method: "POST",
+            endpoint: "/v1/charges",
+            category: "PAYMENT",
+            severity: "LOW",
+            payload: {
+              transaction_amount: "49.99",
+              currency: "USD"
+            }
+          }
+        ],
+        violations: []
+      }
+    };
+
+    let currentEgressKey = 'data_broker';
+
+    function loadEgressScenario(key) {
+      currentEgressKey = key;
+      updateUI();
+    }
+
+    function interceptEgress() {
+      updateUI();
+    }
+
+    function updateUI() {
+      const data = EGRESS_SCENARIOS[currentEgressKey];
+
+      document.getElementById('stat-score').innerText = data.score;
+      document.getElementById('stat-score').className = `text-lg font-bold text-${data.scoreColor}-400`;
+
+      document.getElementById('stat-streams').innerText = data.streams;
+      document.getElementById('stat-undeclared').innerText = data.undeclared;
+
+      const statRisk = document.getElementById('stat-risk');
+      statRisk.className = `text-lg font-bold text-${data.riskColor}-400 flex items-center gap-1.5`;
+      statRisk.innerHTML = `<span class="w-2 h-2 rounded-full bg-${data.riskColor}-400 animate-pulse"></span> ${data.risk}`;
+
+      document.getElementById('stat-policy').innerText = data.policy;
+
+      // Declared tags
+      document.getElementById('declaredTags').innerHTML = data.declared.map(t => `
+        <span class="px-2.5 py-1 rounded bg-slate-900 border border-slate-700 text-xs font-mono text-cyan-300">
+          ✓ ${t}
+        </span>
+      `).join('');
+
+      // Flows
+      document.getElementById('egressFlowsContainer').innerHTML = data.flows.map(f => `
+        <div class="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-mono font-bold text-white flex items-center gap-2">
+              <span class="text-rose-400 font-bold">${f.method}</span>
+              <span>https://${f.domain}${f.endpoint}</span>
+            </span>
+            <span class="text-[10px] font-mono px-2 py-0.5 rounded ${f.severity === 'CRITICAL' ? 'bg-red-950 text-red-400 border border-red-800' : (f.severity === 'HIGH' ? 'bg-amber-950 text-amber-400 border border-amber-800' : 'bg-emerald-950 text-emerald-400 border border-emerald-800')} font-bold">
+              ${f.category}
+            </span>
+          </div>
+          <div class="text-[11px] text-slate-400">Entity: <strong class="text-slate-200">${f.entity}</strong></div>
+          <pre class="bg-slate-950 p-2.5 rounded text-[11px] font-mono text-rose-300 border border-slate-800/80 overflow-x-auto">${JSON.stringify(f.payload, null, 2)}</pre>
+        </div>
+      `).join('');
+
+      // Violations
+      document.getElementById('violationCount').innerText = `${data.violations.length} Flagged`;
+      if (data.violations.length === 0) {
+        document.getElementById('violationsList').innerHTML = `
+          <div class="p-3 rounded-lg bg-emerald-950/20 border border-emerald-800/40 text-emerald-400 text-xs">
+            ✓ All egress packets strictly match declared user privacy consent.
+          </div>
+        `;
+      } else {
+        document.getElementById('violationsList').innerHTML = data.violations.map(v => `
+          <div class="p-3 rounded-lg bg-red-950/30 border border-red-800/60 space-y-1">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono font-bold text-red-300">${v.field} [${v.category}]</span>
+              <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-red-950 text-red-400 border border-red-800 font-bold">${v.severity}</span>
+            </div>
+            <div class="text-[11px] text-slate-300 leading-relaxed">${v.rationale}</div>
+            <div class="text-[10px] font-mono text-slate-400 pt-1">Target: ${v.entity}</div>
+          </div>
+        `).join('');
+      }
+    }
+
+    // Initialize
+    updateUI();
+  </script>
+</body>
+</html>

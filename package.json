@@ -1,0 +1,27 @@
+{
+  "name": "@portfolio/data-shadow",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Personal-data flow analyzer that identifies data categories, third-party destinations, and undeclared exposure",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "tsc && node --test dist/*.test.js",
+    "ui": "npx serve -l 3000 ."
+  },
+  "keywords": [
+    "privacy-engineering",
+    "data-flow-analysis",
+    "gdpr",
+    "ccpa",
+    "pii-detection",
+    "third-party-tracking"
+  ],
+  "author": "Antigravity Engineering",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "typescript": "^5.7.2"
+  }
+}
